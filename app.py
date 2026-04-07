@@ -8,7 +8,6 @@ uploaded_file = st.file_uploader("Excel yükle", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Kolon kontrolü
     gerekli_kolonlar = ["Tarih", "Bölüm", "Operatör", "Çalışılan DK", "Üretilen DK"]
     
     if not all(col in df.columns for col in gerekli_kolonlar):
@@ -16,28 +15,29 @@ if uploaded_file:
     else:
         df["Verimlilik"] = (df["Üretilen DK"] / df["Çalışılan DK"]) * 100
 
-        st.subheader("📋 Ham Veri")
-        st.dataframe(df)
+        st.subheader("📄 SON GÜN PERFORMANS TABLOSU")
 
-        st.subheader("📊 Bölüm Bazlı Performans")
+        # Tarih al
+        tarih = df["Tarih"].iloc[0]
+        st.write(f"**Tarih: {tarih}**")
 
-        bolum_grup = df.groupby("Bölüm")
+        bolumler = df.groupby("Bölüm")
 
-        for bolum, grup in bolum_grup:
-            st.write(f"### ▶ {bolum}")
+        for bolum, grup in bolumler:
+            st.write(f"## ▶ {bolum}")
 
-            ortalama = grup["Verimlilik"].mean()
+            toplam_calisilan = grup["Çalışılan DK"].sum()
+            toplam_uretilen = grup["Üretilen DK"].sum()
+            bolum_verim = (toplam_uretilen / toplam_calisilan) * 100
+
+            st.write(f"**Bölüm Verimlilik: %{bolum_verim:.1f}**")
 
             for _, row in grup.iterrows():
-                st.write(f"{row['Operatör']} → %{row['Verimlilik']:.1f}")
+                st.write(
+                    f"   {row['Operatör']} | "
+                    f"{row['Çalışılan DK']} dk | "
+                    f"{row['Üretilen DK']} dk | "
+                    f"%{row['Verimlilik']:.1f}"
+                )
 
-            st.write(f"**Bölüm Ortalama: %{ortalama:.1f}**")
             st.write("---")
-
-        st.subheader("🏆 En İyi Operatör")
-        en_iyi = df.loc[df["Verimlilik"].idxmax()]
-        st.success(f"{en_iyi['Operatör']} → %{en_iyi['Verimlilik']:.1f}")
-
-        st.subheader("⚠️ En Düşük Operatör")
-        en_kotu = df.loc[df["Verimlilik"].idxmin()]
-        st.error(f"{en_kotu['Operatör']} → %{en_kotu['Verimlilik']:.1f}")
