@@ -4,7 +4,6 @@ import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 
-# ✅ BAŞLIK GÜNCELLENDİ
 st.markdown("""
 <h1 style='text-align:center; color:white; background:#1f4e79; padding:10px;'>
 OPERATÖR PERFORMANS TABLOSU
@@ -27,24 +26,15 @@ if uploaded_file:
     try:
         html = "<div style='width:100%;font-family:Arial'>"
 
-        # 🔥 TÜM BÖLÜMLER
-        bolumler = [
-            ("SEİRİM", "Serim Operatörü"),
-            ("KESİM", "Kesim Operatörü"),
-            ("HAVLU", "Havlu Operatörü"),
-            ("TASNİF", "Tasnif Operatörü"),
-            ("METO", "Meto Operatörü"),
-            ("DANTEL", "Dantel Operatörü"),
-            ("BASKI HAZIRLIK", "Baskı Operatörü"),
-        ]
+        # 🔥 TÜM OPERATÖR KOLONLARINI OTOMATİK BUL
+        operator_cols = [col for col in df.columns if "Operatör" in col]
 
-        for bolum_adi, kolon in bolumler:
+        for col in operator_cols:
 
-            if kolon not in df.columns:
-                continue
+            bolum_adi = col.replace(" Operatörü", "").upper()
 
-            grup = df[[kolon, "Çalışılan Dakika", "Üretilen Dakika", "Verimlilik"]].copy()
-            grup = grup.dropna(subset=[kolon])
+            grup = df[[col, "Çalışılan Dakika", "Üretilen Dakika", "Verimlilik"]].copy()
+            grup = grup.dropna(subset=[col])
 
             if grup.empty:
                 continue
@@ -58,13 +48,13 @@ if uploaded_file:
             </div>
             """
 
-            # 🔽 OPERATÖRLER
+            # 🔽 SATIRLAR
             for _, row in grup.iterrows():
                 renk = get_color(row["Verimlilik"])
 
                 html += f"""
                 <div style='display:flex;border-bottom:1px solid #ddd;padding:6px'>
-                    <div style='width:30%'>{row[kolon]}</div>
+                    <div style='width:30%'>{row[col]}</div>
                     <div style='width:20%'>{row['Çalışılan Dakika']}</div>
                     <div style='width:20%'>{row['Üretilen Dakika']}</div>
                     <div style='width:20%;background:{renk};text-align:center'>
@@ -75,7 +65,7 @@ if uploaded_file:
 
         html += "</div>"
 
-        components.html(html, height=900, scrolling=True)
+        components.html(html, height=1000, scrolling=True)
 
     except Exception as e:
         st.error(f"Hata: {e}")
