@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import streamlit.components.v1 as components
+from io import BytesIO
 
 st.set_page_config(layout="wide")
 
@@ -23,16 +24,20 @@ def get_color(verim):
     else:
         return "#f4cccc"
 
+# 📥 Excel export fonksiyonu
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Rapor')
+    return output.getvalue()
+
 if uploaded_file:
     try:
         excel_file = pd.ExcelFile(uploaded_file)
-        sheet_names = excel_file.sheet_names
-
-        html = "<div style='width:100%;font-family:Arial'>"
         tum_data = []
 
-        for sheet in sheet_names:
-
+        # 🔥 TÜM SHEETLERİ OKU
+        for sheet in excel_file.sheet_names:
             df = pd.read_excel(uploaded_file, sheet_name=sheet)
 
             operator_cols = [col for col in df.columns if "Operatör" in str(col)]
@@ -52,25 +57,53 @@ if uploaded_file:
             if not all(c in df.columns for c in gerekli):
                 continue
 
-            grup = df[gerekli].copy()
-            grup = grup.dropna(subset=[col])
+            temp = df[gerekli].copy()
+            temp = temp.dropna(subset=[col])
+            temp["Bölüm"] = sheet
 
-            if grup.empty:
-                continue
+            tum_data.append(temp)
 
-            grup["Bölüm"] = sheet
-            tum_data.append(grup)
+        if not tum_data:
+            st.warning("Veri bulunamadı")
+            st.stop()
+
+        tum_df = pd.concat(tum_data)
+        tum_df["Tarih"] = pd.to_datetime(tum_df["Tarih"], errors="coerce")
+
+        # 📅 TARİH SEÇ
+        tarihler = tum_df["Tarih"].dropna().dt.date.unique()
+        tarihler = sorted(tarihler)
+
+        secilen_tarih = st.selectbox("📅 Tarih seç", tarihler)
+
+        # 🔥 FİLTRE
+        filtre_df = tum_df[tum_df["Tarih"].dt.date == secilen_tarih]
+
+        # 📥 EXCEL İNDİR
+        excel_data = to_excel(filtre_df)
+
+        st.download_button(
+            label="📥 Excel olarak indir",
+            data=excel_data,
+            file_name=f"performans_{secilen_tarih}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+        # 🔵 HTML RAPOR
+        html = "<div style='width:100%;font-family:Arial'>"
+
+        for bolum in filtre_df["Bölüm"].unique():
+
+            grup = filtre_df[filtre_df["Bölüm"] == bolum]
 
             ort_verim = grup["Verimlilik"].mean()
 
-            # 🔵 BÖLÜM BAŞLIK
             html += f"""
             <div style='background:#2f6690;color:white;padding:10px;margin-top:15px;font-weight:bold'>
-            ▶ {sheet.upper()} - %{round(ort_verim,2)}
+            ▶ {bolum.upper()} - %{round(ort_verim,2)}
             </div>
             """
 
-            # 📋 TABLO BAŞLIK
             html += """
             <div style='display:flex;font-weight:bold;background:#eaeaea;padding:6px;border-bottom:2px solid #999'>
                 <div style='width:25%'>Operatör</div>
@@ -84,19 +117,17 @@ if uploaded_file:
             for _, row in grup.iterrows():
                 renk = get_color(row["Verimlilik"])
 
-                # 📅 tarih format
                 tarih = ""
                 if not pd.isna(row["Tarih"]):
                     tarih = pd.to_datetime(row["Tarih"]).strftime("%d.%m.%Y")
 
-                # 🔢 sayısal formatlar
                 calisilan = int(row["Çalışılan Dakika"]) if not pd.isna(row["Çalışılan Dakika"]) else ""
                 uretilen = f"{row['Üretilen Dakika']:.1f}" if not pd.isna(row["Üretilen Dakika"]) else ""
                 verim = f"{row['Verimlilik']:.2f}" if not pd.isna(row["Verimlilik"]) else "0.00"
 
                 html += f"""
                 <div style='display:flex;border-bottom:1px solid #ddd;padding:6px'>
-                    <div style='width:25%'>{row[col]}</div>
+                    <div style='width:25%'>{row['Bölüm'] if False else row.iloc[1]}</div>
                     <div style='width:15%'>{tarih}</div>
                     <div style='width:20%'>{calisilan}</div>
                     <div style='width:20%'>{uretilen}</div>
@@ -110,33 +141,10 @@ if uploaded_file:
 
         components.html(html, height=900, scrolling=True)
 
-        # 🔥 TÜM DATA
-        if tum_data:
-            tum_df = pd.concat(tum_data)
-            tum_df["Tarih"] = pd.to_datetime(tum_df["Tarih"], errors="coerce")
-
-            # 📈 GRAFİK
-            st.subheader("📈 Günlük Ortalama Verim")
-            gunluk = tum_df.groupby("Tarih")["Verimlilik"].mean().reset_index()
-            st.line_chart(gunluk.set_index("Tarih"))
-
-            # 📅 TARİH SEÇİM (DÜZELTİLMİŞ)
-            st.subheader("📅 Günlük Detay")
-
-            tarihler = tum_df["Tarih"].dropna().dt.date.unique()
-            tarihler = sorted(tarihler)
-
-            if len(tarihler) == 0:
-                st.warning("Tarih bulunamadı")
-            else:
-                secilen_tarih = st.selectbox("Tarih seç", tarihler)
-
-                filtre = tum_df[tum_df["Tarih"].dt.date == secilen_tarih]
-
-                if filtre.empty:
-                    st.warning("Bu tarihte veri yok")
-                else:
-                    st.dataframe(filtre, use_container_width=True)
+        # 📈 GRAFİK
+        st.subheader("📈 Günlük Ortalama Verim")
+        gunluk = tum_df.groupby("Tarih")["Verimlilik"].mean().reset_index()
+        st.line_chart(gunluk.set_index("Tarih"))
 
     except Exception as e:
         st.error(f"Hata: {e}")
