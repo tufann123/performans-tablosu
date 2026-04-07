@@ -4,9 +4,10 @@ import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 
+# ✅ BAŞLIK GÜNCELLENDİ
 st.markdown("""
 <h1 style='text-align:center; color:white; background:#1f4e79; padding:10px;'>
-SON GÜN OPERATÖR PERFORMANS TABLOSU
+OPERATÖR PERFORMANS TABLOSU
 </h1>
 """, unsafe_allow_html=True)
 
@@ -24,47 +25,57 @@ if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
     try:
-        df = df[[
-            "Serim Operatörü",
-            "Çalışılan Dakika",
-            "Üretilen Dakika",
-            "Verimlilik"
-        ]]
+        html = "<div style='width:100%;font-family:Arial'>"
 
-        df = df.dropna(subset=["Serim Operatörü"])
+        # 🔥 TÜM BÖLÜMLER
+        bolumler = [
+            ("SEİRİM", "Serim Operatörü"),
+            ("KESİM", "Kesim Operatörü"),
+            ("HAVLU", "Havlu Operatörü"),
+            ("TASNİF", "Tasnif Operatörü"),
+            ("METO", "Meto Operatörü"),
+            ("DANTEL", "Dantel Operatörü"),
+            ("BASKI HAZIRLIK", "Baskı Operatörü"),
+        ]
 
-        html = """
-        <div style='width:100%;font-family:Arial'>
-        """
+        for bolum_adi, kolon in bolumler:
 
-        # başlık
-        ort_verim = df["Verimlilik"].mean()
+            if kolon not in df.columns:
+                continue
 
-        html += f"""
-        <div style='background:#2f6690;color:white;padding:10px;font-weight:bold'>
-        ▶ SEİRİM - %{ort_verim:.1f}
-        </div>
-        """
+            grup = df[[kolon, "Çalışılan Dakika", "Üretilen Dakika", "Verimlilik"]].copy()
+            grup = grup.dropna(subset=[kolon])
 
-        # satırlar
-        for _, row in df.iterrows():
-            renk = get_color(row["Verimlilik"])
+            if grup.empty:
+                continue
 
+            ort_verim = grup["Verimlilik"].mean()
+
+            # 🔵 BÖLÜM BAŞLIĞI
             html += f"""
-            <div style='display:flex;border-bottom:1px solid #ddd;padding:6px'>
-                <div style='width:30%'>{row['Serim Operatörü']}</div>
-                <div style='width:20%'>{row['Çalışılan Dakika']}</div>
-                <div style='width:20%'>{row['Üretilen Dakika']}</div>
-                <div style='width:20%;background:{renk};text-align:center'>
-                    %{row['Verimlilik']:.1f}
-                </div>
+            <div style='background:#2f6690;color:white;padding:10px;margin-top:15px;font-weight:bold'>
+            ▶ {bolum_adi} - %{ort_verim:.1f}
             </div>
             """
 
+            # 🔽 OPERATÖRLER
+            for _, row in grup.iterrows():
+                renk = get_color(row["Verimlilik"])
+
+                html += f"""
+                <div style='display:flex;border-bottom:1px solid #ddd;padding:6px'>
+                    <div style='width:30%'>{row[kolon]}</div>
+                    <div style='width:20%'>{row['Çalışılan Dakika']}</div>
+                    <div style='width:20%'>{row['Üretilen Dakika']}</div>
+                    <div style='width:20%;background:{renk};text-align:center'>
+                        %{row['Verimlilik']:.1f}
+                    </div>
+                </div>
+                """
+
         html += "</div>"
 
-        # 🔥 BURASI ÖNEMLİ
-        components.html(html, height=600, scrolling=True)
+        components.html(html, height=900, scrolling=True)
 
     except Exception as e:
         st.error(f"Hata: {e}")
