@@ -13,7 +13,9 @@ OPERATÖR PERFORMANS TABLOSU
 uploaded_file = st.file_uploader("Excel yükle", type=["xlsx"])
 
 def get_color(verim):
-    if verim >= 80:
+    if pd.isna(verim):
+        return "#eeeeee"
+    elif verim >= 80:
         return "#c6efce"
     elif verim >= 50:
         return "#ffeb9c"
@@ -21,19 +23,36 @@ def get_color(verim):
         return "#f4cccc"
 
 if uploaded_file:
-    df = pd.read_excel(uploaded_file)
-
     try:
+        # 🔥 TÜM SHEETLERİ OKU
+        excel_file = pd.ExcelFile(uploaded_file)
+        sheet_names = excel_file.sheet_names
+
         html = "<div style='width:100%;font-family:Arial'>"
 
-        # 🔥 TÜM OPERATÖR KOLONLARINI OTOMATİK BUL
-        operator_cols = [col for col in df.columns if "Operatör" in col]
+        for sheet in sheet_names:
 
-        for col in operator_cols:
+            df = pd.read_excel(uploaded_file, sheet_name=sheet)
 
-            bolum_adi = col.replace(" Operatörü", "").upper()
+            # Operatör kolonu bul
+            operator_cols = [col for col in df.columns if "Operatör" in str(col)]
 
-            grup = df[[col, "Çalışılan Dakika", "Üretilen Dakika", "Verimlilik"]].copy()
+            if not operator_cols:
+                continue
+
+            col = operator_cols[0]
+
+            gerekli_kolonlar = [
+                col,
+                "Çalışılan Dakika",
+                "Üretilen Dakika",
+                "Verimlilik"
+            ]
+
+            if not all(c in df.columns for c in gerekli_kolonlar):
+                continue
+
+            grup = df[gerekli_kolonlar].copy()
             grup = grup.dropna(subset=[col])
 
             if grup.empty:
@@ -41,14 +60,13 @@ if uploaded_file:
 
             ort_verim = grup["Verimlilik"].mean()
 
-            # 🔵 BÖLÜM BAŞLIĞI
+            # 🔵 SHEET = BÖLÜM
             html += f"""
             <div style='background:#2f6690;color:white;padding:10px;margin-top:15px;font-weight:bold'>
-            ▶ {bolum_adi} - %{ort_verim:.1f}
+            ▶ {sheet.upper()} - %{ort_verim:.1f}
             </div>
             """
 
-            # 🔽 SATIRLAR
             for _, row in grup.iterrows():
                 renk = get_color(row["Verimlilik"])
 
@@ -58,14 +76,14 @@ if uploaded_file:
                     <div style='width:20%'>{row['Çalışılan Dakika']}</div>
                     <div style='width:20%'>{row['Üretilen Dakika']}</div>
                     <div style='width:20%;background:{renk};text-align:center'>
-                        %{row['Verimlilik']:.1f}
+                        %{0 if pd.isna(row['Verimlilik']) else round(row['Verimlilik'],1)}
                     </div>
                 </div>
                 """
 
         html += "</div>"
 
-        components.html(html, height=1000, scrolling=True)
+        components.html(html, height=1200, scrolling=True)
 
     except Exception as e:
         st.error(f"Hata: {e}")
