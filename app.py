@@ -23,9 +23,15 @@ def get_color(verim):
     else:
         return "#f4cccc"
 
+def safe_float(x):
+    try:
+        return float(x)
+    except:
+        return 0
+
 def to_excel(df):
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)
     return output.getvalue()
 
@@ -68,14 +74,14 @@ if uploaded_file:
 
         filtre_df = tum_df[tum_df["Tarih"].dt.date == secilen_tarih]
 
-        # 📥 EXCEL EXPORT
+        # 📥 EXCEL İNDİR
         st.download_button(
             "📥 Excel indir",
             data=to_excel(filtre_df),
             file_name=f"performans_{secilen_tarih}.xlsx"
         )
 
-        # 📊 EN İYİ / EN KÖTÜ
+        # 📊 GÜNÜN ÖZETİ
         st.subheader("📊 Günün Özeti")
 
         col1, col2 = st.columns(2)
@@ -84,16 +90,19 @@ if uploaded_file:
             en_iyi = filtre_df.loc[filtre_df["Verimlilik"].idxmax()]
             en_kotu = filtre_df.loc[filtre_df["Verimlilik"].idxmin()]
 
-            col1.success(f"🏆 En iyi: {en_iyi['Operatör']} (%{en_iyi['Verimlilik']:.2f})")
-            col2.error(f"⚠️ En kötü: {en_kotu['Operatör']} (%{en_kotu['Verimlilik']:.2f})")
+            en_iyi_verim = safe_float(en_iyi["Verimlilik"])
+            en_kotu_verim = safe_float(en_kotu["Verimlilik"])
 
-        # 🔵 HTML RAPOR
+            col1.success(f"🏆 En iyi: {en_iyi['Operatör']} (%{en_iyi_verim:.2f})")
+            col2.error(f"⚠️ En kötü: {en_kotu['Operatör']} (%{en_kotu_verim:.2f})")
+
+        # 📋 HTML TABLO
         html = "<div style='width:100%;font-family:Arial'>"
 
         for bolum in filtre_df["Bölüm"].unique():
 
             grup = filtre_df[filtre_df["Bölüm"] == bolum]
-            ort = grup["Verimlilik"].mean()
+            ort = safe_float(grup["Verimlilik"].mean())
 
             html += f"""
             <div style='background:#2f6690;color:white;padding:10px;margin-top:15px;font-weight:bold'>
@@ -115,14 +124,18 @@ if uploaded_file:
                 renk = get_color(row["Verimlilik"])
                 tarih = row["Tarih"].strftime("%d.%m.%Y") if pd.notna(row["Tarih"]) else ""
 
+                calisan = int(safe_float(row["Çalışılan Dakika"]))
+                uretilen = round(safe_float(row["Üretilen Dakika"]), 1)
+                verim = round(safe_float(row["Verimlilik"]), 2)
+
                 html += f"""
                 <div style='display:flex;padding:6px;border-bottom:1px solid #ddd'>
                     <div style='width:25%'>{row['Operatör']}</div>
                     <div style='width:15%'>{tarih}</div>
-                    <div style='width:20%'>{int(row['Çalışılan Dakika'])}</div>
-                    <div style='width:20%'>{row['Üretilen Dakika']:.1f}</div>
+                    <div style='width:20%'>{calisan}</div>
+                    <div style='width:20%'>{uretilen}</div>
                     <div style='width:20%;background:{renk};text-align:center'>
-                        %{row['Verimlilik']:.2f}
+                        %{verim}
                     </div>
                 </div>
                 """
@@ -130,7 +143,7 @@ if uploaded_file:
         html += "</div>"
         components.html(html, height=800, scrolling=True)
 
-        # 📈 GÜNLÜK GRAFİK
+        # 📈 GÜNLÜK
         st.subheader("📈 Günlük Ortalama Verim")
         gunluk = tum_df.groupby("Tarih")["Verimlilik"].mean()
         st.line_chart(gunluk)
@@ -151,8 +164,8 @@ if uploaded_file:
             op_df = tum_df_sorted[tum_df_sorted["Operatör"] == op]
 
             if len(op_df) >= 2:
-                son = op_df.iloc[-1]["Verimlilik"]
-                onceki = op_df.iloc[-2]["Verimlilik"]
+                son = safe_float(op_df.iloc[-1]["Verimlilik"])
+                onceki = safe_float(op_df.iloc[-2]["Verimlilik"])
 
                 if son < onceki:
                     dusus_list.append((op, onceki, son))
