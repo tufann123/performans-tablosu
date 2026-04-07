@@ -3,62 +3,80 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(layout="wide")
-st.title("📊 Performans Dashboard")
+st.title("📊 Performans Analizi")
 
-# SESSION STATE (hafıza)
-if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame(
-        columns=["Tarih", "Bölüm", "Operatör", "Çalışılan DK", "Üretilen DK"]
-    )
+uploaded_file = st.file_uploader("Excel yükle", type=["xlsx"])
 
-df = st.session_state.data
+def parse_karma_format(df_raw):
+    data = []
+    current_bolum = None
 
-# FORM
-st.subheader("➕ Yeni Kayıt")
+    for _, row in df_raw.iterrows():
+        first_col = str(row[0])
 
-col1, col2, col3 = st.columns(3)
+        if "▶" in first_col:
+            current_bolum = first_col.replace("▶", "").strip()
 
-with col1:
-    tarih = st.date_input("Tarih")
-    bolum = st.text_input("Bölüm")
+        elif "-" in first_col and current_bolum:
+            operator = first_col.strip()
+            calisilan = row[2]
+            uretilen = row[3]
 
-with col2:
-    operator = st.text_input("Operatör")
-    calisilan = st.number_input("Çalışılan DK", min_value=0)
+            if pd.notna(calisilan) and pd.notna(uretilen):
+                data.append([current_bolum, operator, calisilan, uretilen])
 
-with col3:
-    uretilen = st.number_input("Üretilen DK", min_value=0)
+    df = pd.DataFrame(data, columns=["Bölüm", "Operatör", "Çalışılan DK", "Üretilen DK"])
+    return df
 
-if st.button("Kaydet"):
-    new_row = pd.DataFrame(
-        [[tarih, bolum, operator, calisilan, uretilen]],
-        columns=df.columns
-    )
-    st.session_state.data = pd.concat([df, new_row], ignore_index=True)
-    st.success("Kayıt eklendi!")
+if uploaded_file:
+    try:
+        df = pd.read_excel(uploaded_file)
 
-df = st.session_state.data
+        # Eğer düz format değilse parse et
+        if "Bölüm" not in df.columns:
+            df_raw = pd.read_excel(uploaded_file, header=None)
+            df = parse_karma_format(df_raw)
 
-# ANALİZ
-if not df.empty:
-    df["Verimlilik"] = (df["Üretilen DK"] / df["Çalışılan DK"]) * 100
+        df["Verimlilik"] = (df["Üretilen DK"] / df["Çalışılan DK"]) * 100
 
-    st.markdown("---")
+        # KPI
+        col1, col2, col3 = st.columns(3)
 
-    # KPI
-    col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Toplam Çalışılan", int(df["Çalışılan DK"].sum()))
+        col2.metric("Toplam Üretilen", int(df["Üretilen DK"].sum()))
+        col3.metric("Ortalama Verim", f"%{df['Verimlilik'].mean():.1f}")
 
-    col1.metric("Toplam Çalışılan", int(df["Çalışılan DK"].sum()))
-    col2.metric("Toplam Üretilen", int(df["Üretilen DK"].sum()))
-    col3.metric("Ortalama Verim", f"%{df['Verimlilik'].mean():.1f}")
-    col4.metric("Kayıt Sayısı", len(df))
+        # Grafik
+        st.subheader("📊 Bölüm Performansı")
+        bolum = df.groupby("Bölüm", as_index=False)["Verimlilik"].mean()
+        fig = px.bar(bolum, x="Bölüm", y="Verimlilik", text_auto=".1f")
+        st.plotly_chart(fig, use_container_width=True)
 
-    # Grafik
-    st.subheader("📊 Bölüm Bazlı Verimlilik")
-    bolum_ozet = df.groupby("Bölüm", as_index=False)["Verimlilik"].mean()
-    fig = px.bar(bolum_ozet, x="Bölüm", y="Verimlilik", text_auto=".1f")
-    st.plotly_chart(fig, use_container_width=True)
+        # Tablo
+        st.subheader("📋 Detay")
+        st.dataframe(df, use_container_width=True)
 
-    # Tablo
-    st.subheader("📋 Kayıtlar")
-    st.dataframe(df, use_container_width=True)
+        # Senin formatta çıktı
+        st.subheader("📄 Rapor")
+
+        for bolum, grup in df.groupby("Bölüm"):
+            st.write(f"### ▶ {bolum}")
+
+            toplam_calisilan = grup["Çalışılan DK"].sum()
+            toplam_uretilen = grup["Üretilen DK"].sum()
+            verim = (toplam_uretilen / toplam_calisilan) * 100
+
+            st.write(f"**Bölüm Verim: %{verim:.1f}**")
+
+            for _, row in grup.iterrows():
+                st.write(
+                    f"{row['Operatör']} | "
+                    f"{row['Çalışılan DK']} | "
+                    f"{row['Üretilen DK']} | "
+                    f"%{row['Verimlilik']:.1f}"
+                )
+
+            st.write("---")
+
+    except Exception as e:
+        st.error(f"Hata: {e}")
