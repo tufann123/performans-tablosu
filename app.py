@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 
@@ -24,7 +25,6 @@ if uploaded_file:
 
     try:
         df = df[[
-            "Tarih",
             "Serim Operatörü",
             "Çalışılan Dakika",
             "Üretilen Dakika",
@@ -33,34 +33,38 @@ if uploaded_file:
 
         df = df.dropna(subset=["Serim Operatörü"])
 
-        bolum = "SEİRİM"
-        toplam_verim = df["Verimlilik"].mean()
+        html = """
+        <div style='width:100%;font-family:Arial'>
+        """
 
-        st.markdown(f"""
-        <div style='background:#2f6690;color:white;padding:8px;margin-top:20px'>
-        ▶ {bolum} - %{toplam_verim:.1f}
+        # başlık
+        ort_verim = df["Verimlilik"].mean()
+
+        html += f"""
+        <div style='background:#2f6690;color:white;padding:10px;font-weight:bold'>
+        ▶ SEİRİM - %{ort_verim:.1f}
         </div>
-        """, unsafe_allow_html=True)
+        """
 
+        # satırlar
         for _, row in df.iterrows():
-
             renk = get_color(row["Verimlilik"])
 
-            html = f"""
-            <div style='display:flex;justify-content:space-between;
-                        padding:8px;border-bottom:1px solid #ddd'>
-
+            html += f"""
+            <div style='display:flex;border-bottom:1px solid #ddd;padding:6px'>
                 <div style='width:30%'>{row['Serim Operatörü']}</div>
                 <div style='width:20%'>{row['Çalışılan Dakika']}</div>
                 <div style='width:20%'>{row['Üretilen Dakika']}</div>
                 <div style='width:20%;background:{renk};text-align:center'>
                     %{row['Verimlilik']:.1f}
                 </div>
-
             </div>
             """
 
-            st.markdown(html, unsafe_allow_html=True)
+        html += "</div>"
+
+        # 🔥 BURASI ÖNEMLİ
+        components.html(html, height=600, scrolling=True)
 
     except Exception as e:
         st.error(f"Hata: {e}")
