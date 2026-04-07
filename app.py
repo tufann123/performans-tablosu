@@ -1,90 +1,52 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import os
 
 st.set_page_config(layout="wide")
+st.title("📊 Performans Takip Sistemi")
 
-st.title("📊 Performans Dashboard")
+DATA_FILE = "data.csv"
 
-uploaded_file = st.file_uploader("Excel yükle", type=["xlsx"])
+# Eğer dosya yoksa oluştur
+if not os.path.exists(DATA_FILE):
+    df_init = pd.DataFrame(columns=["Tarih", "Bölüm", "Operatör", "Çalışılan DK", "Üretilen DK"])
+    df_init.to_csv(DATA_FILE, index=False)
 
-if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+# Veri oku
+df = pd.read_csv(DATA_FILE)
 
-    gerekli_kolonlar = ["Tarih", "Bölüm", "Operatör", "Çalışılan DK", "Üretilen DK"]
+# FORM ALANI
+st.subheader("➕ Yeni Kayıt Ekle")
 
-    if not all(col in df.columns for col in gerekli_kolonlar):
-        st.error("Excel formatı hatalı!")
-    else:
-        # Hesaplamalar
-        df["Verimlilik"] = (df["Üretilen DK"] / df["Çalışılan DK"]) * 100
+with st.form("veri_form"):
+    tarih = st.date_input("Tarih")
+    bolum = st.text_input("Bölüm")
+    operator = st.text_input("Operatör")
+    calisilan = st.number_input("Çalışılan DK", min_value=0)
+    uretilen = st.number_input("Üretilen DK", min_value=0)
 
-        # KPI ALANI
-        toplam_calisilan = df["Çalışılan DK"].sum()
-        toplam_uretilen = df["Üretilen DK"].sum()
-        ort_verim = df["Verimlilik"].mean()
-        en_iyi = df.loc[df["Verimlilik"].idxmax()]
-        en_kotu = df.loc[df["Verimlilik"].idxmin()]
+    submit = st.form_submit_button("Kaydet")
 
-        col1, col2, col3, col4 = st.columns(4)
+    if submit:
+        new_data = pd.DataFrame([[tarih, bolum, operator, calisilan, uretilen]],
+                                columns=df.columns)
 
-        col1.metric("Toplam Çalışılan DK", f"{toplam_calisilan:,.0f}")
-        col2.metric("Toplam Üretilen DK", f"{toplam_uretilen:,.0f}")
-        col3.metric("Ortalama Verimlilik", f"%{ort_verim:.1f}")
-        col4.metric("En İyi Operatör", f"{en_iyi['Operatör']} (%{en_iyi['Verimlilik']:.1f})")
+        df = pd.concat([df, new_data], ignore_index=True)
+        df.to_csv(DATA_FILE, index=False)
 
-        st.markdown("---")
+        st.success("Kayıt eklendi!")
 
-        # 📊 BÖLÜM BAZLI GRAFİK
-        st.subheader("📊 Bölüm Bazlı Verimlilik")
+# ANALİZ
+if not df.empty:
+    df["Verimlilik"] = (df["Üretilen DK"] / df["Çalışılan DK"]) * 100
 
-        bolum_ozet = df.groupby("Bölüm", as_index=False)["Verimlilik"].mean()
-        fig1 = px.bar(bolum_ozet, x="Bölüm", y="Verimlilik", text_auto=".1f")
+    st.subheader("📊 Dashboard")
 
-        st.plotly_chart(fig1, use_container_width=True)
+    col1, col2, col3 = st.columns(3)
 
-        # 👤 OPERATÖR PERFORMANSI
-        st.subheader("👤 Operatör Performansı")
+    col1.metric("Toplam Çalışılan", int(df["Çalışılan DK"].sum()))
+    col2.metric("Toplam Üretilen", int(df["Üretilen DK"].sum()))
+    col3.metric("Ortalama Verim", f"%{df['Verimlilik'].mean():.1f}")
 
-        fig2 = px.bar(
-            df.sort_values("Verimlilik", ascending=False),
-            x="Operatör",
-            y="Verimlilik",
-            color="Bölüm",
-            text_auto=".1f"
-        )
-
-        st.plotly_chart(fig2, use_container_width=True)
-
-        # 📋 DETAY TABLO
-        st.subheader("📋 Detay Veri")
-        st.dataframe(df, use_container_width=True)
-
-        st.markdown("---")
-
-        # 📄 SENİN FORMATTA RAPOR
-        st.subheader("📄 Son Gün Performans Raporu")
-
-        tarih = df["Tarih"].iloc[0]
-        st.write(f"**Tarih: {tarih}**")
-
-        bolumler = df.groupby("Bölüm")
-
-        for bolum, grup in bolumler:
-            st.write(f"### ▶ {bolum}")
-
-            toplam_calisilan = grup["Çalışılan DK"].sum()
-            toplam_uretilen = grup["Üretilen DK"].sum()
-            bolum_verim = (toplam_uretilen / toplam_calisilan) * 100
-
-            st.write(f"**Bölüm Verimlilik: %{bolum_verim:.1f}**")
-
-            for _, row in grup.iterrows():
-                st.write(
-                    f"{row['Operatör']} | "
-                    f"{row['Çalışılan DK']} dk | "
-                    f"{row['Üretilen DK']} dk | "
-                    f"%{row['Verimlilik']:.1f}"
-                )
-
-            st.write("---")
+    st.subheader("📋 Tüm Kayıtlar")
+    st.dataframe(df, use_container_width=True)
