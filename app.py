@@ -10,38 +10,46 @@ uploaded_file = st.file_uploader("Excel yükle", type=["xlsx"])
 # Sabit bölümler (görünmesini istediğin tüm bölümler)
 BOLUMLER = ["SEİRİM", "KESİM", "HAVLU", "PAKET", "KALİTE"]
 
-# Excel parser (esnek ve güçlü)
 def parse_excel(df_raw):
     data = []
     current_bolum = None
 
     for i in range(len(df_raw)):
         row = df_raw.iloc[i]
-        col0 = str(row[0]).strip()
 
-        # Bölüm yakala
-        if "▶" in col0:
-            current_bolum = col0.replace("▶", "").strip()
+        # tüm hücreleri string yap
+        row_values = [str(x).strip() for x in row if str(x) != "nan"]
 
-        # Operatör satırı
-        elif current_bolum and col0 not in ["", "None", "nan"]:
-            operator = col0
+        if not row_values:
+            continue
 
+        text = " ".join(row_values).upper()
+
+        # BÖLÜM YAKALA (anahtar kelimeler)
+        if any(b in text for b in ["SEİRİM", "KESİM", "HAVLU", "PAKET", "KALİTE"]):
+            for b in ["SEİRİM", "KESİM", "HAVLU", "PAKET", "KALİTE"]:
+                if b in text:
+                    current_bolum = b
+                    break
+
+        # OPERATÖR + SAYI YAKALA
+        elif current_bolum:
             numbers = []
+            operator = None
+
             for val in row:
                 try:
                     numbers.append(float(val))
                 except:
-                    continue
+                    if isinstance(val, str) and val.strip() != "":
+                        operator = val.strip()
 
-            if len(numbers) >= 2:
-                calisilan = numbers[0]
-                uretilen = numbers[1]
-
-                data.append([current_bolum, operator, calisilan, uretilen])
+            if operator and len(numbers) >= 2:
+                data.append([current_bolum, operator, numbers[0], numbers[1]])
 
     df = pd.DataFrame(data, columns=["Bölüm", "Operatör", "Çalışılan DK", "Üretilen DK"])
     return df
+
 
 # =========================
 
