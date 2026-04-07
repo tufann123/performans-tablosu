@@ -23,7 +23,6 @@ if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
     try:
-        # Sadece gerekli kolonları al
         df = df[[
             "Tarih",
             "Serim Operatörü",
@@ -34,10 +33,7 @@ if uploaded_file:
 
         df = df.dropna(subset=["Serim Operatörü"])
 
-        # bölüm adı sabit (şimdilik)
         bolum = "SEİRİM"
-
-        # toplam verim
         toplam_verim = df["Verimlilik"].mean()
 
         st.markdown(f"""
@@ -47,9 +43,10 @@ if uploaded_file:
         """, unsafe_allow_html=True)
 
         for _, row in df.iterrows():
+
             renk = get_color(row["Verimlilik"])
 
-            st.markdown(f"""
+            html = f"""
             <div style='display:flex;justify-content:space-between;
                         padding:8px;border-bottom:1px solid #ddd'>
 
@@ -61,7 +58,9 @@ if uploaded_file:
                 </div>
 
             </div>
-            """, unsafe_allow_html=True)
+            """
+
+            st.markdown(html, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Hata: {e}")
